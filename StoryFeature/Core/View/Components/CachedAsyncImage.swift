@@ -6,23 +6,24 @@
 //
 
 import SwiftUI
+import Combine
 
 struct CachedAsyncImage: View {
     let url: URL
-    let cache: ImageCacheProtocol
+    let loader: ImageLoaderServiceProtocol
 
     @State private var downloadedImage: UIImage?
     @State private var isLoading = false
 
-    init(url: URL, cache: ImageCacheProtocol = DiskImageCache.shared) {
+    init(url: URL, loader: ImageLoaderServiceProtocol = ImageLoaderService()) {
         self.url = url
-        self.cache = cache
+        self.loader = loader
     }
 
     var body: some View {
         ZStack {
-            if let downloadedImage {
-                Image(uiImage: downloadedImage)
+            if let image = downloadedImage {
+                Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
             } else if isLoading {
@@ -37,20 +38,12 @@ struct CachedAsyncImage: View {
     }
 
     private func loadImage() {
-        if let cached = cache.image(for: url) {
-            downloadedImage = cached
-            return
-        }
-
+        if downloadedImage != nil { return }
         isLoading = true
         Task {
             do {
-//                try await Task.sleep(for: .seconds(2))
-                let (data, _) = try await URLSession.shared.data(from: url)
-                if let img = UIImage(data: data) {
-                    cache.set(img, for: url)
-                    downloadedImage = img
-                }
+                let image = try await loader.loadImage(from: url)
+                downloadedImage = image
             } catch {
                 print("Image download error:", error)
             }
