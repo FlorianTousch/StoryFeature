@@ -12,7 +12,7 @@ struct StoryFeatureApp: App {
     var body: some Scene {
         WindowGroup {
             UsersListView()
-                .modelContainer(for: UserEntity.self)
+                .modelContainer(for: [UserEntity.self])
         }
     }
 }

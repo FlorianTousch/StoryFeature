@@ -11,21 +11,16 @@ import SwiftData
 struct UsersListView: View {
     @Environment(\.modelContext) private var context
     @StateObject private var viewModel = UserViewModel()
+    @Query(sort: [SortDescriptor<UserEntity>(\.id, order: .forward)]) var users: [UserEntity]
 
-    @Query var users: [UserEntity]
-
-    init() {
-        _users = Query(
-            filter: nil,
-            sort: [SortDescriptor<UserEntity>(\.id, order: .forward)]
-        )
-    }
+    // Sélectionne l'utilisateur pour ouvrir ses stories en full screen
+    @State private var selectedUser: UserEntity?
 
     var body: some View {
         NavigationView {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 20) {
-                    ForEach(Array(users.enumerated()), id: \.element.id) { (index, user) in
+                    ForEach(users, id: \.id) { user in
                         VStack {
                             if let profileURL = URL(string: user.profilePictureURL) {
                                 CachedAsyncImage(url: profileURL)
@@ -36,20 +31,34 @@ struct UsersListView: View {
                                     .fill(Color.gray)
                                     .frame(width: 80, height: 80)
                             }
-
                             Text(user.name)
                                 .font(.caption)
                         }
+                        .onTapGesture {
+                            // Au tap, on ouvre les stories du user
+                            selectedUser = user
+                        }
                         .onAppear {
-                            if index == users.count - 2 {
+                            // Pagination pour charger plus d'utilisateurs
+                            if let index = users.firstIndex(where: { $0.id == user.id }),
+                               index == users.count - 2 {
                                 viewModel.loadNextPageIfNeeded(context: context)
                             }
                         }
                     }
                 }
                 .padding()
-
                 Spacer()
+            }
+            .navigationTitle("Users")
+        }
+        .fullScreenCover(item: $selectedUser) { user in
+            if let index = users.firstIndex(of: user) {
+                StoryFlowFullScreenView(
+                    profiles: users,
+                    startProfileIndex: index,
+                    viewModel: viewModel
+                )
             }
         }
         .task {
