@@ -1,4 +1,3 @@
-//
 //  UserViewModel.swift
 //  StoryFeature
 //
@@ -13,8 +12,11 @@ class UserViewModel: ObservableObject {
     private let service: UserService
     @Published var currentPageIndex = 0
 
+    @Published var likedStoryIDs: Set<String> = []
+
     init(service: UserService = JSONUserService()) {
         self.service = service
+        loadPersistedLikes()
     }
 
     func loadNextPageIfNeeded(context: ModelContext) {
@@ -46,5 +48,32 @@ class UserViewModel: ObservableObject {
         } catch {
             print("Pagination error:", error)
         }
+    }
+
+    // MARK: - Like Management
+
+    func toggleLike(storyID: String) {
+        if likedStoryIDs.contains(storyID) {
+            likedStoryIDs.remove(storyID)
+        } else {
+            likedStoryIDs.insert(storyID)
+        }
+        persistLikes()
+    }
+
+    func isLiked(storyID: String) -> Bool {
+        likedStoryIDs.contains(storyID)
+    }
+
+    // MARK: - Persistence
+
+    private func loadPersistedLikes() {
+        let array = UserDefaults.standard.stringArray(forKey: "likedStoryIDs") ?? []
+        likedStoryIDs = Set(array)
+    }
+
+    private func persistLikes() {
+        let array = Array(likedStoryIDs)
+        UserDefaults.standard.set(array, forKey: "likedStoryIDs")
     }
 }

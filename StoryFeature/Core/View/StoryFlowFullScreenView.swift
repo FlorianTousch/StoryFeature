@@ -18,10 +18,10 @@ struct StoryFlowFullScreenView: View {
     var currentStories: [Story] {
         let user = profiles[currentProfileIndex]
         return [
-            Story(id: "\(user.id)-photo-1", mediaType: .photo, url: URL(string: "https://images.unsplash.com/photo-1742590794643-5b401ed198b4?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D")!),
-            Story(id: "\(user.id)-photo-2", mediaType: .photo, url: URL(string: "https://plus.unsplash.com/premium_photo-1677556743433-8ace1c020781?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D")!),
+            Story(id: "\(user.id)-photo-1", mediaType: .photo, url: URL(string: "https://images.unsplash.com/photo-1742590794643-5b401ed198b4?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.0.3")!),
+            Story(id: "\(user.id)-photo-2", mediaType: .photo, url: URL(string: "https://plus.unsplash.com/premium_photo-1677556743433-8ace1c020781?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.0.3")!),
             Story(id: "\(user.id)-video", mediaType: .video(offset: 0), url: URL(string: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")!),
-            Story(id: "\(user.id)-photo-3", mediaType: .photo, url: URL(string: "https://images.unsplash.com/photo-1742401571210-d24df76632b9?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D")!)
+            Story(id: "\(user.id)-photo-3", mediaType: .photo, url: URL(string: "https://images.unsplash.com/photo-1742401571210-d24df76632b9?q=80&w=2487&auto=format&fit=crop&ixlib=rb-4.0.3")!)
         ]
     }
 
@@ -29,6 +29,7 @@ struct StoryFlowFullScreenView: View {
     @State private var segmentProgress: Double = 0
     @State private var manualNavigation = false
     @State private var verticalOffset: CGFloat = 0
+    @State private var heartScale: CGFloat = 1.0
 
     let photoDuration: Double = 10.0
     let timer = Timer.publish(every: 0.02, on: .main, in: .common).autoconnect()
@@ -45,12 +46,12 @@ struct StoryFlowFullScreenView: View {
 
     var body: some View {
         ZStack {
+            // Fond noir
             Color.black.ignoresSafeArea()
 
+            // Affichage de la story (photo ou vidéo)
             if currentStoryIndex >= currentStories.count {
-                Color.clear.onAppear {
-                    goToNextProfile()
-                }
+                Color.clear.onAppear { goToNextProfile() }
             } else {
                 let story = currentStories[currentStoryIndex]
                 Group {
@@ -70,29 +71,57 @@ struct StoryFlowFullScreenView: View {
                 .id("\(currentProfile.id)-\(currentStoryIndex)")
             }
 
+            // Overlay du header et de la progress bar
             VStack(spacing: 8) {
-                ProfileHeaderView(profileName: currentProfile.name, profileImageURL: currentProfile.profilePictureURL)
-                AnimatedProgressBarView(total: currentStories.count, currentIndex: currentStoryIndex, progress: segmentProgress)
+                ProfileHeaderView(profileName: currentProfile.name,
+                                  profileImageURL: currentProfile.profilePictureURL)
+                AnimatedProgressBarView(total: currentStories.count,
+                                        currentIndex: currentStoryIndex,
+                                        progress: segmentProgress)
                     .padding(.horizontal, 16)
                     .animation(.linear, value: segmentProgress)
                 Spacer()
-                HStack {
-                    Rectangle()
-                        .foregroundColor(.clear)
-                        .contentShape(Rectangle())
-                        .onTapGesture { goToPreviousStory() }
-                    Rectangle()
-                        .foregroundColor(.clear)
-                        .contentShape(Rectangle())
-                        .onTapGesture { goToNextStory() }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .padding(.top, 16)
             .zIndex(9999)
             .id(currentProfile.id)
+
+            // Overlay invisible pour capter les taps horizontaux (zones de navigation)
+            HStack(spacing: 0) {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { goToPreviousStory() }
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { goToNextStory() }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(500)
+
+            // Bouton "like" animé en bas au centre
+            VStack {
+                Spacer()
+                Button {
+                    let storyID = currentStories[currentStoryIndex].id
+                    viewModel.toggleLike(storyID: storyID)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        heartScale = 1.5
+                    }
+                    withAnimation(.easeInOut(duration: 0.2).delay(0.2)) {
+                        heartScale = 1.0
+                    }
+                } label: {
+                    Image(systemName: viewModel.isLiked(storyID: currentStories[currentStoryIndex].id) ? "heart.fill" : "heart")
+                        .font(.system(size: 40))
+                        .foregroundColor(.red)
+                        .scaleEffect(heartScale)
+                }
+                .padding(.bottom, 40)
+            }
+            .zIndex(1000)
         }
         .offset(y: verticalOffset)
+        // Gesture verticale pour fermer la vue par un drag vers le bas
         .gesture(
             DragGesture(minimumDistance: 20)
                 .onChanged { value in
@@ -106,7 +135,21 @@ struct StoryFlowFullScreenView: View {
                     }
                 }
         )
-        .onChange(of: currentProfileIndex) {
+        // Gesture horizontale pour changer de profil par swipe
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                .onEnded { value in
+                    let horizontal = value.translation.width
+                    if abs(horizontal) > 100 {
+                        if horizontal > 0 {
+                            goToPreviousProfile()
+                        } else {
+                            goToNextProfile()
+                        }
+                    }
+                }
+        )
+        .onChange(of: currentProfileIndex) { _ in
             segmentProgress = 0
             manualNavigation = false
             currentStoryIndex = 0
@@ -129,9 +172,10 @@ struct StoryFlowFullScreenView: View {
         .transition(.opacity)
     }
 
+    // MARK: - Navigation functions
+
     func goToNextStory() {
         manualNavigation = true
-
         if currentStoryIndex < currentStories.count - 1 {
             currentStoryIndex += 1
         } else {
@@ -146,7 +190,6 @@ struct StoryFlowFullScreenView: View {
 
     func goToPreviousStory() {
         manualNavigation = true
-
         if currentStoryIndex > 0 {
             currentStoryIndex -= 1
         } else {
@@ -160,7 +203,6 @@ struct StoryFlowFullScreenView: View {
     }
 
     func goToNextProfile() {
-        // Réinitialise la progression et le flag de navigation manuelle
         segmentProgress = 0
         manualNavigation = false
         if currentProfileIndex < profiles.count - 1 {
