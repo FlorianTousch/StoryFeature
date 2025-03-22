@@ -1,3 +1,4 @@
+//
 //  UserViewModel.swift
 //  StoryFeature
 //
@@ -12,10 +13,12 @@ class UserViewModel: ObservableObject {
     private let service: UserService
     @Published var currentPageIndex = 0
 
+    @Published var seenStoryIDs: Set<String> = []
     @Published var likedStoryIDs: Set<String> = []
 
     init(service: UserService = JSONUserService()) {
         self.service = service
+        loadPersistedSeen()
         loadPersistedLikes()
     }
 
@@ -24,7 +27,6 @@ class UserViewModel: ObservableObject {
             guard let page = try service.fetchPage(index: currentPageIndex) else {
                 return
             }
-
             for dto in page.users {
                 let existing = try context.fetch(
                     FetchDescriptor<UserEntity>()
@@ -43,14 +45,40 @@ class UserViewModel: ObservableObject {
                 }
             }
             try context.save()
-
             currentPageIndex += 1
         } catch {
             print("Pagination error:", error)
         }
     }
 
-    // MARK: - Like Management
+    // MARK: - Seen Stories Persistence
+
+    func markStoryAsSeen(storyID: String) {
+        seenStoryIDs.insert(storyID)
+        persistSeen()
+    }
+
+    func hasUnseenStories(user: UserEntity) -> Bool {
+        let expectedStoryIDs = [
+            "\(user.id)-photo-1",
+            "\(user.id)-photo-2",
+            "\(user.id)-video",
+            "\(user.id)-photo-3"
+        ]
+        return expectedStoryIDs.contains { !seenStoryIDs.contains($0) }
+    }
+
+    private func loadPersistedSeen() {
+        let array = UserDefaults.standard.stringArray(forKey: "seenStoryIDs") ?? []
+        seenStoryIDs = Set(array)
+    }
+
+    private func persistSeen() {
+        let array = Array(seenStoryIDs)
+        UserDefaults.standard.set(array, forKey: "seenStoryIDs")
+    }
+
+    // MARK: - Liked Stories Persistence
 
     func toggleLike(storyID: String) {
         if likedStoryIDs.contains(storyID) {
@@ -64,8 +92,6 @@ class UserViewModel: ObservableObject {
     func isLiked(storyID: String) -> Bool {
         likedStoryIDs.contains(storyID)
     }
-
-    // MARK: - Persistence
 
     private func loadPersistedLikes() {
         let array = UserDefaults.standard.stringArray(forKey: "likedStoryIDs") ?? []

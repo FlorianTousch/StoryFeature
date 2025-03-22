@@ -11,39 +11,29 @@ import SwiftData
 struct UsersListView: View {
     @Environment(\.modelContext) private var context
     @StateObject private var viewModel = UserViewModel()
+
     @Query(sort: [SortDescriptor<UserEntity>(\.id, order: .forward)]) var users: [UserEntity]
 
-    // Sélectionne l'utilisateur pour ouvrir ses stories en full screen
     @State private var selectedUser: UserEntity?
 
     var body: some View {
         NavigationView {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 20) {
-                    ForEach(users, id: \.id) { user in
-                        VStack {
-                            if let profileURL = URL(string: user.profilePictureURL) {
-                                CachedAsyncImage(url: profileURL)
-                                    .frame(width: 80, height: 80)
-                                    .clipShape(Circle())
-                            } else {
-                                Circle()
-                                    .fill(Color.gray)
-                                    .frame(width: 80, height: 80)
-                            }
-                            Text(user.name)
-                                .font(.caption)
+                HStack(spacing: 16) {
+                    let sortedUsers = users.sorted { u1, u2 in
+                        let unseen1 = viewModel.hasUnseenStories(user: u1)
+                        let unseen2 = viewModel.hasUnseenStories(user: u2)
+                        if unseen1 == unseen2 {
+                            return u1.id < u2.id
+                        } else {
+                            return unseen1 && !unseen2
                         }
-                        .onTapGesture {
-                            // Au tap, on ouvre les stories du user
+                    }
+                    ForEach(sortedUsers, id: \.id) { user in
+                        Button {
                             selectedUser = user
-                        }
-                        .onAppear {
-                            // Pagination pour charger plus d'utilisateurs
-                            if let index = users.firstIndex(where: { $0.id == user.id }),
-                               index == users.count - 2 {
-                                viewModel.loadNextPageIfNeeded(context: context)
-                            }
+                        } label: {
+                            ProfileItemView(user: user, hasUnseenStories: viewModel.hasUnseenStories(user: user))
                         }
                     }
                 }
@@ -51,18 +41,16 @@ struct UsersListView: View {
                 Spacer()
             }
             .navigationTitle("Users")
-        }
-        .fullScreenCover(item: $selectedUser) { user in
-            if let index = users.firstIndex(of: user) {
-                StoryFlowFullScreenView(
-                    profiles: users,
-                    startProfileIndex: index,
-                    viewModel: viewModel
-                )
+            .fullScreenCover(item: $selectedUser) { user in
+                StoryFlowFullScreenView(profiles: users, startProfileIndex: index(of: user), viewModel: viewModel)
             }
         }
         .task {
             viewModel.loadNextPageIfNeeded(context: context)
         }
+    }
+
+    func index(of user: UserEntity) -> Int {
+        users.firstIndex(where: { $0.id == user.id }) ?? 0
     }
 }

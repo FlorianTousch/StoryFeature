@@ -46,10 +46,8 @@ struct StoryFlowFullScreenView: View {
 
     var body: some View {
         ZStack {
-            // Fond noir
             Color.black.ignoresSafeArea()
 
-            // Affichage de la story (photo ou vidéo)
             if currentStoryIndex >= currentStories.count {
                 Color.clear.onAppear { goToNextProfile() }
             } else {
@@ -71,7 +69,6 @@ struct StoryFlowFullScreenView: View {
                 .id("\(currentProfile.id)-\(currentStoryIndex)")
             }
 
-            // Overlay du header et de la progress bar
             VStack(spacing: 8) {
                 ProfileHeaderView(profileName: currentProfile.name,
                                   profileImageURL: currentProfile.profilePictureURL)
@@ -86,7 +83,6 @@ struct StoryFlowFullScreenView: View {
             .zIndex(9999)
             .id(currentProfile.id)
 
-            // Overlay invisible pour capter les taps horizontaux (zones de navigation)
             HStack(spacing: 0) {
                 Color.clear
                     .contentShape(Rectangle())
@@ -98,7 +94,6 @@ struct StoryFlowFullScreenView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .zIndex(500)
 
-            // Bouton "like" animé en bas au centre
             VStack {
                 Spacer()
                 Button {
@@ -121,7 +116,6 @@ struct StoryFlowFullScreenView: View {
             .zIndex(1000)
         }
         .offset(y: verticalOffset)
-        // Gesture verticale pour fermer la vue par un drag vers le bas
         .gesture(
             DragGesture(minimumDistance: 20)
                 .onChanged { value in
@@ -135,7 +129,6 @@ struct StoryFlowFullScreenView: View {
                     }
                 }
         )
-        // Gesture horizontale pour changer de profil par swipe
         .simultaneousGesture(
             DragGesture(minimumDistance: 20, coordinateSpace: .local)
                 .onEnded { value in
@@ -176,6 +169,9 @@ struct StoryFlowFullScreenView: View {
 
     func goToNextStory() {
         manualNavigation = true
+        let currentID = currentStories[currentStoryIndex].id
+        viewModel.markStoryAsSeen(storyID: currentID)
+
         if currentStoryIndex < currentStories.count - 1 {
             currentStoryIndex += 1
         } else {
