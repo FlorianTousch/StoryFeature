@@ -11,7 +11,8 @@ import SwiftUI
 struct StoryFeatureApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            UsersListView()
+                .modelContainer(for: UserEntity.self)
         }
     }
 }
